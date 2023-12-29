@@ -1,29 +1,40 @@
-const jwt = require('jsonwebtoken');
 const User = require('../../Models/User');
-const {generateToken, generatePassword, isPassword, sendEmail, sendVerify} = require('./function');
+const {isPassword, jwtVerify, sendVerify} = require('./function');
 async function deleteUser(req, res, next) {
-    const {username, verify, password} = req.body;
+    const {verify, password} = req.body;
     try {
-        //Chưa có verify
-        //Tìm user tồn tại không
-        let user = User.findOne({username});
+        //username hoặc email tồn tại hay không
+        let user = await User.findById(req.user.id);
+
         if (user) {
             if (verify) {
-                //Có verify, kiểm tra verify, password
-                jwt.verify(user.verify_token, secret, (err, params) => {
-                    //Nếu password và verify đúng lưu email mới
-                    if (isPassword(params, verify) && params.mode === 'delete user' && isPassword(user, password))
-                        //Đúng thì xóa
-                        return User.deleteOne({username})
-                            .then(() => res.status(200).json({msg: 'Xóa thành công'}))
+                if (password) {
+                    let params = await jwtVerify(user.verify_token);
+
+                    // Kiểm tra verify code, password đúng chưa.
+                    if (params.err) return res.status(401).json(params);
+                    if (
+                        isPassword(params, verify, user.salt) &&
+                        params.mode === 'delete user' &&
+                        isPassword(user, password)
+                    ) {
+                        //Đúng thì cập nhật password mới
+                        return User.deleteOne({_id: req.user.id})
+                            .then(() => res.status(200).json({msg: 'Delete user successfully'}))
                             .catch((err) => res.status(401).json({err}));
-                    else return res.status(401).json({msg: 'verify code is incorrect'});
-                });
+                    } else return res.status(401).json({err: 'verify code or password is incorrect'});
+                } else return res.status(401).json({err: 'enter your password'});
+            } else {
+                //Chưa có verify thì gửi verify tới email mới
+                await sendVerify(user, 'delete user', user.email);
+                // Lưu thay đổi
+                return user
+                    .save()
+                    .then(() => res.status(200).json({msg: 'sent verify code to your email'}))
+                    .catch((err) => res.status(401).json({err}));
             }
-            //Gửi verify đến email
-            return await sendVerify(user, 'delete user', user.email);
         }
-        return res.status(401).json({err: 'username or email is invalid'});
+        return res.status(401).json({err: 'username is invalid'});
     } catch (err) {
         console.log(err);
         return res.status(501).json({err});

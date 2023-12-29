@@ -1,43 +1,38 @@
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-
 const User = require('../../Models/User');
-const secret = process.env.SECRET;
 
-const {generateToken, generatePassword, isPassword, sendEmail} = require('./function');
+const {generatePassword, isPassword, sendVerify, jwtVerify} = require('./function');
 async function forgotPassword(req, res, next) {
     const {username, email, verify, newPassword} = req.body;
     try {
         //username hoặc email tồn tại hay không
-        let user = User.findOne({$or: [{username}, {email}]});
+        let msg;
+        let user = await User.findOne({$or: [{username}, {email}]});
 
         if (user) {
             //Nếu có user
             if (verify) {
-                //Nếu có verify, so sánh với verify_token
-                return jwt.sign(verify, secret, (err, params) => {
-                    //Nếu đúng lưu password mới
-                    if (user.verify_token === params.hash && params.mode === 'forgot password') {
+                if (newPassword) {
+                    let params = await jwtVerify(user.verify_token);
+
+                    // Kiểm tra verify code, password đúng chưa.
+                    if (params.err) return res.status(401).json(params);
+                    if (isPassword(params, verify, user.salt) && params.mode === 'forgot password') {
+                        //Đúng thì cập nhật password mới
                         generatePassword(user, newPassword);
-                        return user
-                            .save()
-                            .then(() => res.status(200).json({msg: 'Change password successfully'}))
-                            .catch((err) => res.status(401).json({err}));
-                    }
-                    return res.status(401).json({msg: 'verify code is incorrect'});
-                });
+                        user.verify_token = '';
+                        msg = 'Change password successfully';
+                    } else return res.status(401).json({err: 'verify code is incorrect'});
+                } else return res.status(401).json({err: 'need new password'});
+            } else {
+                //Chưa có verify thì gửi verify tới email mới
+                await sendVerify(user, 'forgot password', user.email);
+                msg = 'sent verify code to your email';
             }
-            //Nếu chưa có verify tạo và lưu thông tin verify_token vào user
-            const verify = crypto.randomBytes(6).toString('hex');
-            const hash = crypto.pbkdf2Sync(verify, user.salt, 1000, 512, 'sha512').toString('hex');
-            let params = {hash, mode: 'forgot password'};
-            user.verify_token = jwt.sign(params, secret, {expiresIn: '2m'});
-
-            await user.save();
-            return await sendEmail(user.email, 'ToDo App: Verify Code', verify);
-
-            //verify_token = jwt (hash(verify))
-            //Gửi verify code đến email
+            // Lưu thay đổi
+            return user
+                .save()
+                .then(() => res.status(200).json({msg}))
+                .catch((err) => res.status(401).json({err}));
         }
         return res.status(401).json({err: 'username or email is invalid'});
     } catch (err) {

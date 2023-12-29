@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 dotenv.config();
 
-const secret = process.env.JWT_SECRET;
+const secret = process.env.SECRET;
 function getTokenFromHeader(req) {
     if (
         (req.headers.authorization && req.headers.authorization.split(' ')[0] === 'Token') ||

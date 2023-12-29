@@ -1,55 +1,72 @@
-const jwt = require('jsonwebtoken');
 const User = require('../../Models/User');
-const {generateToken, generatePassword, isPassword, sendEmail, sendVerify} = require('./function');
+const {generatePassword, isPassword, sendVerify, jwtVerify} = require('./function');
 async function update(req, res, next) {
-    const {username, email, name, verify, password, newPassword, newEmail} = req.body;
+    const {name, verify, password, newPassword, newEmail} = req.body;
     // let errors
     try {
         //Tìm kiếm username
-        let user = User.findOne({$or: [{username}, {email}]});
-
+        let msg;
+        let user = await User.findById(req.user.id);
         if (user) {
             //Nếu tồn tại cập nhật chỉnh sửa thông tin chung
             user.name = name;
 
             //Sửa email
-            if (newEmail) {
-                //Nếu sửa password, email kiểm tra password cũ và verify đúng chưa
+            if (newEmail && !newPassword) {
+                //Kiểm tra có verify chưa.
                 if (verify) {
-                    //kiểm tra xem có verify chưa
-                    jwt.verify(user.verify_token, secret, (err, params) => {
-                        //Nếu password và verify đúng lưu email mới
-                        if (isPassword(params, verify) && params.mode === 'change email' && isPassword(user, password))
-                            user.email = newEmail;
-                        else return res.status(401).json({msg: 'verify code is incorrect'});
-                    });
+                    let params = await jwtVerify(user.verify_token);
+                    // Kiểm tra verify code, password đúng chưa.
+                    if (params.err) return res.status(401).json(params);
+                    if (
+                        isPassword(params, verify, user.salt) &&
+                        params.mode === 'change email' &&
+                        isPassword(user, password)
+                    ) {
+                        //Đúng thì cập nhật email mới
+                        user.email = newEmail;
+                        user.verify_token = '';
+                        msg = 'Change email successfully';
+                    } else return res.status(401).json({msg: 'verify code or password is incorrect'});
+                } else {
+                    //Chưa có verify thì gửi verify tới email mới
+                    await sendVerify(user, 'change email', newEmail);
+                    msg = 'sent verify code to your email';
                 }
-                return await sendVerify(user, 'change email', newEmail);
             }
-
             // Sửa password
-            if (newPassword) {
-                //Nếu sửa password, email kiểm tra password cũ và verify đúng chưa
+            if (newPassword && !newEmail) {
+                //Kiểm tra có verify chưa.
                 if (verify) {
-                    //kiểm tra xem có verify chưa
-                    jwt.verify(user.verify_token, secret, (err, params) => {
-                        //Nếu verify đúng lưu password mới
-                        if (isPassword(params, verify) && params.mode === 'change password') {
-                            generatePassword(user, newPassword);
-                        }
-                        return res.status(401).json({msg: 'verify code is incorrect'});
-                    });
+                    let params = await jwtVerify(user.verify_token);
+                    // Kiểm tra verify code đúng chưa.
+                    if (params.err) return res.status(401).json(params);
+                    if (
+                        isPassword(params, verify, user.salt) &&
+                        isPassword(user, password) &&
+                        params.mode === 'change password'
+                    ) {
+                        //Đúng thì cập nhật email mới
+                        generatePassword(user, newPassword);
+                        user.verify_token = '';
+                        user.password = newPassword;
+                        msg = 'Change password successfully';
+                    } else return res.status(401).json({msg: 'verify code or password is incorrect'});
+                } else {
+                    //Chưa có verify thì gửi verify tới email mới
+                    await sendVerify(user, 'change password', user.email);
+                    msg = 'sent verify code to your email';
                 }
-                return await sendVerify(user, 'change password', user.email);
             }
-
-            //Lưu thay đổi
+            if (newPassword && newEmail) {
+                return res.status(401).json({err: 'Can not update email and password at the same time'});
+            }
+            // Lưu thay đổi
             return user
                 .save()
-                .then(() => res.status(200).json({msg: 'Change information successfully'}))
+                .then(() => res.status(200).json({msg}))
                 .catch((err) => res.status(401).json({err}));
-        }
-        return res.status(401).json({err: 'username or email is invalid'});
+        } else return res.status(401).json({err: 'username or email is invalid'});
     } catch (err) {
         console.log(err);
         return res.status(501).json({err});

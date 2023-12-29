@@ -25,4 +25,4 @@ User.methods.info = () => {
     return {name: this.name, email: this.email};
 };
 
-module.exports = mongoose.Model('Users', User);
+module.exports = mongoose.model('Users', User);
