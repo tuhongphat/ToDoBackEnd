@@ -26,6 +26,7 @@ function jwtVerify(token) {
     });
 }
 async function sendVerify(user, mode, email) {
+    console.log('send email');
     let verify = crypto.randomBytes(6).toString('hex');
     let hash = crypto.pbkdf2Sync(verify, user.salt, 1000, 512, 'sha512').toString('hex');
     let params = {hash, mode};

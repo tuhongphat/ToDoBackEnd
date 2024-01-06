@@ -3,8 +3,22 @@ const User = require('../../Models/User');
 const Notification = require('../../Models/Notification');
 
 async function getOne(req, res, next) {
-    if (req.job.create_by === req.user._id || req.job.execute_by.includes(req.user._id))
-        return res.status(200).json({job: req.job});
-    return res.status(200).json({err: 'You can not get this job'});
+    var job = await Job.find({
+        $and: [
+            {_id: req.job.id},
+            {
+                $or: [
+                    {author: req.user.id},
+                    {
+                        execute_by: {
+                            $elemMatch: {$eq: req.user.id},
+                        },
+                    },
+                ],
+            },
+        ],
+    });
+    if (job) return res.status(200).json({job});
+    return res.status(404).json({err: 'You can not get this job'});
 }
 module.exports = getOne;

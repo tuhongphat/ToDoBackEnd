@@ -3,6 +3,7 @@ const {generateToken, generatePassword} = require('./function');
 async function register(req, res, next) {
     const {username, password, email, name} = req.body;
     try {
+        console.log({username, password});
         //Xem username hoặc email đã tồn tại chưa
         // let userInvalid = await User.find({$or: [{username}, {email}]});
         let userInvalid = await User.find({username});
@@ -10,6 +11,7 @@ async function register(req, res, next) {
             console.log(userInvalid);
             return res.status(401).json({err: 'username hoặc email đã tồn tại'});
         }
+
         //Tạo user mới
         let user = new User();
 

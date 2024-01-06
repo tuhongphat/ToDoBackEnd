@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 dotenv.config();
-
+const {jwtVerify} = require('../Controllers/User/function');
 const secret = process.env.SECRET;
 function getTokenFromHeader(req) {
     if (
@@ -19,6 +19,7 @@ const auth = {
             if (err) {
                 return res.status(403).json({message: 'Failed to authentication with token.'});
             }
+
             req.user = user;
             next();
         });
@@ -34,15 +35,10 @@ const auth = {
         next();
     },
     isAuthor: async function (req, res, next) {
-        jwt.verify(getTokenFromHeader(req), secret, (err, user) => {
-            if (err) {
-                return res.status(403).json({message: 'Failed to authentication with token.'});
-            }
-            req.user = user;
-        });
-        console.log(req.user.id, req.author);
-        if (req.user.id != req.author) return res.status(403).json({message: 'You are not author'});
-        next();
+        let params = await jwtVerify(getTokenFromHeader(req));
+        console.log(params);
+        if (params.id === req.author) return next();
+        else return res.status(403).json({message: 'You are not author'});
     },
 };
 

@@ -7,7 +7,7 @@ async function forgotPassword(req, res, next) {
         //username hoặc email tồn tại hay không
         let msg;
         let user = await User.findOne({$or: [{username}, {email}]});
-
+        console.log('forgot-password');
         if (user) {
             //Nếu có user
             if (verify) {

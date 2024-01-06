@@ -15,7 +15,7 @@ router.post('/register', userController.register); //OK
 router.post('/', userController.login); // OK
 
 // Forgot password
-router.post('/forgot-password', auth.required, userController.forgotPassword); //OK
+router.post('/forgot-password', userController.forgotPassword); //OK
 
 // Update user
 router.patch('/', auth.required, userController.update); //OK

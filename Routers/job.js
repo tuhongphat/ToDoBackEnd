@@ -4,25 +4,18 @@ const jobController = require('../Controllers/Job');
 const Job = require('../Models/Job');
 const auth = require('../Middlewares/auth');
 
-router.param('id', (req, res, next, id) => {
-    Job.findById(id)
-        .populate(['create_by', 'execute_by'])
-        .then((job) => {
-            if (job) {
-                req.job = job;
-                next();
-            }
-            return res.status(404).json({err: 'Job not found'});
-        });
+router.param('id', async (req, res, next, id) => {
+    req.id = id;
+    next();
 });
 //get all my Jobs
-router.get('/', auth.required, jobController.getAll);
+router.get('/', auth.required, jobController.getAll); // OK
 
 //get a Job
-router.get('/:id', auth.required, jobController.getOne);
+router.get('/:id', auth.required, jobController.getOne); // OK
 
 //create
-router.post('/', auth.required, jobController.create);
+router.post('/', auth.required, jobController.create); //OK
 
 //update
 router.patch('/:id', auth.required, jobController.update);
